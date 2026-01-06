@@ -5,15 +5,14 @@
  * If this file is updated, you must update this header and the parent folder's README.md.
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import './App.css';
 
 import { DeckGLViewer, VIEW_MODES } from './components/DeckGLViewer';
 import { ModelSelector } from './components/ModelSelector';
 import { ControlPanel } from './components/ControlPanel';
-import { useFirstPersonControls } from './hooks/useFirstPersonControls';
 import { useModelLoader, useModelManifest } from './hooks/useModelLoader';
-import { usePointCloudExtractor, COLOR_MODES } from './hooks/usePointCloudExtractor';
+import { usePointCloudExtractor, COLOR_MODES, calculateBounds } from './hooks/usePointCloudExtractor';
 
 function App() {
   // Model manifest and selection
@@ -26,7 +25,7 @@ function App() {
   // View and render controls - default to point cloud
   const [viewMode, setViewMode] = useState(VIEW_MODES.POINTCLOUD);
   const [controls, setControls] = useState({
-    pointSize: 4,  // Larger points for better visibility
+    pointSize: 2.5,  // Default point size
     colorMode: COLOR_MODES.ORIGINAL,
     solidColor: [255, 255, 255],
     highQuality: true,
@@ -45,22 +44,26 @@ function App() {
     colorMode: controls.colorMode,
     solidColor: controls.solidColor,
     lodLevel: controls.lodLevel,
-    sampleRate: 0.1,  // Sample 10% of points for large files
+    sampleRate: 1.0,  // Sample 100% of points
   });
 
-  // First person camera controls
-  // Position camera based on typical point cloud bounds
-  const {
-    isPointerLocked,
-    cameraMode,
-    toggleCameraMode,
-    setCanvasElement,
-    getDeckViewState,
-  } = useFirstPersonControls({
-    position: [2.5, 0, 2],  // Near center of point cloud
-    bearing: 0,
-    pitch: 0,
-  });
+  // Calculate initial view state based on point cloud bounds
+  const initialViewState = useMemo(() => {
+    if (pointCloudData && pointCloudData.length > 0) {
+      const bounds = calculateBounds(pointCloudData);
+      if (bounds) {
+        return {
+          target: bounds.center,
+          rotationX: 30,
+          rotationOrbit: -45,
+          zoom: 4,
+          minZoom: -2,
+          maxZoom: 20,
+        };
+      }
+    }
+    return null;
+  }, [pointCloudData]);
 
   // Handle model selection
   const handleModelSelect = useCallback((model) => {
@@ -73,22 +76,10 @@ function App() {
     setViewMode(mode);
   }, []);
 
-  // Handle camera mode change
-  const handleCameraModeChange = useCallback((mode) => {
-    if (mode !== cameraMode) {
-      toggleCameraMode();
-    }
-  }, [cameraMode, toggleCameraMode]);
-
   // Handle control changes
   const handleControlChange = useCallback((newControls) => {
     setControls(newControls);
   }, []);
-
-  // Handle canvas ready
-  const handleCanvasReady = useCallback((canvas) => {
-    setCanvasElement(canvas);
-  }, [setCanvasElement]);
 
   // Handle device info
   const handleDeviceInfo = useCallback((info) => {
@@ -123,8 +114,7 @@ function App() {
           pointCloudData={pointCloudData}
           viewMode={viewMode}
           controls={controls}
-          viewState={getDeckViewState()}
-          onCanvasReady={handleCanvasReady}
+          initialViewState={initialViewState}
           onDeviceInfo={handleDeviceInfo}
         />
       )}
@@ -136,8 +126,6 @@ function App() {
           onControlChange={handleControlChange}
           viewMode={viewMode}
           onViewModeChange={handleViewModeChange}
-          cameraMode={cameraMode}
-          onCameraModeChange={handleCameraModeChange}
           deviceInfo={deviceInfo}
           stats={stats}
           isCollapsed={controlPanelCollapsed}
@@ -168,10 +156,10 @@ function App() {
         </div>
       )}
 
-      {/* Pointer Lock Hint */}
-      {selectedModel && modelData && !isPointerLocked && !isLoading && (
+      {/* Controls Hint */}
+      {selectedModel && modelData && !isLoading && (
         <div className="pointer-lock-hint">
-          Click to look around
+          WASD move · Space up · Shift down · Mouse rotate · Scroll zoom
         </div>
       )}
 

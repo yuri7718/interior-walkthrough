@@ -215,17 +215,16 @@ export function useFirstPersonControls(initialState = {}) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cameraMode]);
 
-  // Convert to deck.gl FirstPersonView format
-  // deck.gl FirstPersonView expects: longitude, latitude, position, bearing, pitch, maxPitch, minPitch
+  // Convert to deck.gl OrbitView format
+  // OrbitView uses: target (center point), rotationX (pitch), rotationOrbit (yaw/bearing), zoom
   const getDeckViewState = useCallback(() => {
     return {
-      longitude: viewState.position[0],  // X position mapped to longitude
-      latitude: viewState.position[2],   // Z position mapped to latitude
-      position: [0, viewState.position[1], 0],  // Y is relative height
-      bearing: viewState.bearing,
-      pitch: viewState.pitch,
-      maxPitch: 89,
-      minPitch: -89,
+      target: viewState.position,  // Camera looks at this position
+      rotationX: -viewState.pitch,  // Pitch (negative because OrbitView convention)
+      rotationOrbit: viewState.bearing,  // Yaw/bearing
+      zoom: 4,  // Zoom level (higher = closer)
+      minZoom: -2,
+      maxZoom: 20,
     };
   }, [viewState]);
 
