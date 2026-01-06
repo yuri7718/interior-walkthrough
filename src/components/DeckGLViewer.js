@@ -1,11 +1,11 @@
 /**
  * Input: modelData, pointCloudData, viewState, controls
  * Output: deck.gl canvas with WebGL rendering
- * Pos: Main 3D viewer component using deck.gl with OrbitView
+ * Pos: Main 3D viewer component using deck.gl with OrbitView + keyboard controls
  * If this file is updated, you must update this header and the parent folder's README.md.
  */
 
-import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import React, { useMemo, useRef, useEffect, useCallback, useState } from 'react';
 import DeckGL from '@deck.gl/react';
 import { OrbitView } from '@deck.gl/core';
 import { ScenegraphLayer } from '@deck.gl/mesh-layers';
@@ -22,27 +22,141 @@ export const VIEW_MODES = {
   POINTCLOUD: 'pointcloud',
 };
 
-// Initial view state for OrbitView
-const INITIAL_VIEW_STATE = {
-  target: [2.5, 0, 2],  // Look at center of point cloud
-  rotationX: 30,        // Pitch
-  rotationOrbit: -45,   // Yaw
-  zoom: 2,              // Zoom level
+// Default view state
+const DEFAULT_VIEW_STATE = {
+  target: [0, 0, 0],
+  rotationX: 30,
+  rotationOrbit: -45,
+  zoom: 4,
   minZoom: -2,
-  maxZoom: 10,
+  maxZoom: 20,
 };
+
+// Keyboard movement settings
+const MOVE_SPEED = 0.1;
+const VERTICAL_SPEED = 0.05;
 
 export function DeckGLViewer({
   modelData,
   pointCloudData,
   viewMode = VIEW_MODES.MESH,
   controls = {},
-  viewState: externalViewState,
+  initialViewState,
   onCanvasReady,
   onDeviceInfo,
 }) {
   const deckRef = useRef(null);
-  const [viewState, setViewState] = useState(INITIAL_VIEW_STATE);
+  const [viewState, setViewState] = useState(initialViewState || DEFAULT_VIEW_STATE);
+  const keysPressed = useRef({});
+  const animationFrameRef = useRef(null);
+
+  // Update internal viewState when initialViewState changes (e.g., when point cloud loads)
+  useEffect(() => {
+    if (initialViewState && initialViewState.target) {
+      setViewState(prev => ({
+        ...prev,
+        ...initialViewState,
+      }));
+    }
+  }, [initialViewState]);
+
+  // Handle view state changes from deck.gl controller (mouse)
+  const onViewStateChange = useCallback(({ viewState: newViewState }) => {
+    setViewState(newViewState);
+  }, []);
+
+  // Keyboard controls
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      keysPressed.current[e.code] = true;
+      // Prevent default for movement keys
+      if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight', 'KeyQ', 'KeyE'].includes(e.code)) {
+        e.preventDefault();
+      }
+    };
+
+    const handleKeyUp = (e) => {
+      keysPressed.current[e.code] = false;
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, []);
+
+  // Animation loop for keyboard movement
+  useEffect(() => {
+    const animate = () => {
+      const keys = keysPressed.current;
+
+      setViewState(prev => {
+        if (!prev || !prev.target) return prev;
+
+        const rotationOrbit = prev.rotationOrbit || 0;
+        const bearingRad = (rotationOrbit * Math.PI) / 180;
+
+        // Calculate forward and right vectors based on current rotation
+        const forward = [Math.sin(bearingRad), 0, -Math.cos(bearingRad)];
+        const right = [Math.cos(bearingRad), 0, Math.sin(bearingRad)];
+
+        let dx = 0, dy = 0, dz = 0;
+
+        // WASD movement
+        if (keys['KeyW']) {
+          dx += forward[0] * MOVE_SPEED;
+          dz += forward[2] * MOVE_SPEED;
+        }
+        if (keys['KeyS']) {
+          dx -= forward[0] * MOVE_SPEED;
+          dz -= forward[2] * MOVE_SPEED;
+        }
+        if (keys['KeyA']) {
+          dx -= right[0] * MOVE_SPEED;
+          dz -= right[2] * MOVE_SPEED;
+        }
+        if (keys['KeyD']) {
+          dx += right[0] * MOVE_SPEED;
+          dz += right[2] * MOVE_SPEED;
+        }
+
+        // Vertical movement (Space/Shift or Q/E)
+        if (keys['Space'] || keys['KeyE']) {
+          dy += VERTICAL_SPEED;
+        }
+        if (keys['ShiftLeft'] || keys['ShiftRight'] || keys['KeyQ']) {
+          dy -= VERTICAL_SPEED;
+        }
+
+        // Only update if there's movement
+        if (dx !== 0 || dy !== 0 || dz !== 0) {
+          return {
+            ...prev,
+            target: [
+              prev.target[0] + dx,
+              prev.target[1] + dy,
+              prev.target[2] + dz,
+            ],
+          };
+        }
+
+        return prev;
+      });
+
+      animationFrameRef.current = requestAnimationFrame(animate);
+    };
+
+    animationFrameRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, []);
 
   // Handle deck.gl load - get device info and canvas
   useEffect(() => {
@@ -64,11 +178,6 @@ export function DeckGLViewer({
       }
     }
   }, [onCanvasReady, onDeviceInfo]);
-
-  // Handle view state changes
-  const onViewStateChange = useCallback(({ viewState: newViewState }) => {
-    setViewState(newViewState);
-  }, []);
 
   // Create layers based on view mode
   const layers = useMemo(() => {
@@ -105,14 +214,14 @@ export function DeckGLViewer({
     return result;
   }, [viewMode, modelData, pointCloudData, controls.modelScale, controls.pointSize]);
 
-  // OrbitView for 3D point cloud navigation
+  // OrbitView for 3D navigation with custom controls
   const views = useMemo(() => {
     return new OrbitView({
       id: 'orbit',
       orbitAxis: 'Y',
-      fovy: controls.fov || 50,
-      near: 0.1,
-      far: 1000,
+      fovy: controls.fov || 75,
+      near: 0.01,
+      far: 10000,
     });
   }, [controls.fov]);
 
@@ -135,6 +244,7 @@ export function DeckGLViewer({
         width: '100%',
         height: '100%',
         zIndex: 0,
+        cursor: 'grab',
       }}
     />
   );
