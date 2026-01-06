@@ -1,6 +1,7 @@
 {
-  "name": "gallery",
+  "name": "interior-walkthrough",
   "version": "0.1.0",
+  "homepage": "https://yuri7718.github.io/interior-walkthrough",
   "private": true,
   "dependencies": {
     "@react-three/cannon": "^6.6.0",
@@ -10,6 +11,7 @@
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
     "@types/three": "^0.168.0",
+    "gh-pages": "^6.3.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-scripts": "5.0.1",
@@ -17,6 +19,8 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d build",
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",

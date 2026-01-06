@@ -6,7 +6,7 @@ export function Gallery() {
   
   const gltf = useLoader(
     GLTFLoader,
-    process.env.PUBLIC_URL + "models/DJI_20251230163815_0158_D_stabilized.glb"
+    process.env.PUBLIC_URL + "/models/DJI_20251230163815_0158_D_stabilized.glb"
   );
   
   useEffect(() => {
