@@ -1,0 +1,11 @@
+Model Information:
+* title:	Virtual Gallery scene 01
+* source:	https://sketchfab.com/3d-models/virtual-gallery-scene-01-9d65fd0a6aa64d8182fa591a726313dd
+* author:	Yervand (https://sketchfab.com/ervand250912)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Virtual Gallery scene 01" (https://sketchfab.com/3d-models/virtual-gallery-scene-01-9d65fd0a6aa64d8182fa591a726313dd) by Yervand (https://sketchfab.com/ervand250912) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
