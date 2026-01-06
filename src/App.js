@@ -45,7 +45,7 @@ function App() {
     colorMode: controls.colorMode,
     solidColor: controls.solidColor,
     lodLevel: controls.lodLevel,
-    sampleRate: 0.1,  // Sample 10% of points for large files
+    sampleRate: 1.0,  // Sample 100% of points
   });
 
   // First person camera controls
