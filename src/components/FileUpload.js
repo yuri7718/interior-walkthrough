@@ -31,9 +31,7 @@ export function FileUpload({ onUploadComplete }) {
     setProgress(0);
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-
+      // Use PUT with streaming - simpler and avoids multipart parsing issues
       const xhr = new XMLHttpRequest();
 
       xhr.upload.addEventListener('progress', (e) => {
@@ -45,19 +43,27 @@ export function FileUpload({ onUploadComplete }) {
       const response = await new Promise((resolve, reject) => {
         xhr.onload = () => {
           if (xhr.status >= 200 && xhr.status < 300) {
-            resolve(JSON.parse(xhr.responseText));
+            try {
+              resolve(JSON.parse(xhr.responseText));
+            } catch {
+              reject(new Error('Invalid response from server'));
+            }
           } else {
             try {
               const err = JSON.parse(xhr.responseText);
-              reject(new Error(err.error || 'Upload failed'));
+              reject(new Error(err.error || `Upload failed (${xhr.status})`));
             } catch {
-              reject(new Error('Upload failed'));
+              reject(new Error(`Upload failed with status ${xhr.status}`));
             }
           }
         };
         xhr.onerror = () => reject(new Error('Network error'));
-        xhr.open('POST', '/api/upload');
-        xhr.send(formData);
+
+        // Use the streaming upload endpoint
+        xhr.open('PUT', `/api/upload-url?filename=${encodeURIComponent(file.name)}`);
+        xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+        xhr.setRequestHeader('x-vercel-filename', file.name);
+        xhr.send(file);
       });
 
       if (response.success && onUploadComplete) {
