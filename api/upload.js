@@ -14,11 +14,26 @@ export const config = {
 };
 
 export default async function handler(req, res) {
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
+    // Check if BLOB token is configured
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      console.error('BLOB_READ_WRITE_TOKEN is not configured');
+      return res.status(500).json({ error: 'Server configuration error: Blob storage not configured' });
+    }
+
     const contentType = req.headers['content-type'] || '';
 
     if (!contentType.includes('multipart/form-data')) {
@@ -55,11 +70,14 @@ export default async function handler(req, res) {
       });
     }
 
+    console.log('Uploading file:', filePart.filename, 'Size:', filePart.data.length);
+
     // Upload to Vercel Blob
     const blob = await put(`models/${filePart.filename}`, filePart.data, {
       access: 'public',
-      addRandomSuffix: false,
     });
+
+    console.log('Upload successful:', blob.url);
 
     // Return the uploaded file info
     return res.status(200).json({
@@ -75,8 +93,11 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    console.error('Upload error:', error);
-    return res.status(500).json({ error: error.message || 'Upload failed' });
+    console.error('Upload error:', error.message, error.stack);
+    return res.status(500).json({
+      error: error.message || 'Upload failed',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 }
 
