@@ -12,6 +12,7 @@
     "@loaders.gl/draco": "^3.4.0",
     "@loaders.gl/gltf": "^3.4.0",
     "@loaders.gl/images": "^3.4.0",
+    "@loaders.gl/ply": "^3.4.15",
     "@luma.gl/core": "^8.5.0",
     "@luma.gl/engine": "^8.5.0",
     "@luma.gl/gltools": "^8.5.0",

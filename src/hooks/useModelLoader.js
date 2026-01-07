@@ -1,7 +1,7 @@
 /**
  * Input: model URL/path
  * Output: loaded model data, loading state
- * Pos: Hook for loading GLB/GLTF models using loaders.gl
+ * Pos: Hook for loading GLB/GLTF/PLY models using loaders.gl
  * If this file is updated, you must update this header and the parent folder's README.md.
  */
 
@@ -9,9 +9,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { load, registerLoaders } from '@loaders.gl/core';
 import { GLTFLoader } from '@loaders.gl/gltf';
 import { DracoLoader } from '@loaders.gl/draco';
+import { PLYLoader } from '@loaders.gl/ply';
 
-// Register Draco loader for compressed meshes
-registerLoaders([DracoLoader]);
+// Register loaders for compressed meshes and PLY files
+registerLoaders([DracoLoader, PLYLoader]);
 
 export function useModelLoader() {
   const [modelUrl, setModelUrl] = useState(null);
@@ -30,29 +31,53 @@ export function useModelLoader() {
 
     try {
       const fullUrl = url.startsWith('http') ? url : `${process.env.PUBLIC_URL}${url}`;
+      const isPLY = fullUrl.toLowerCase().endsWith('.ply');
 
-      const gltf = await load(fullUrl, GLTFLoader, {
-        gltf: {
-          loadBuffers: true,
-          loadImages: true,
-          decompressMeshes: true,
-          postProcess: true,
-        },
-        draco: {
-          decoderType: 'js',
-        },
-        onProgress: (progressEvent) => {
-          if (progressEvent.total) {
-            setProgress(Math.round((progressEvent.loaded / progressEvent.total) * 100));
+      if (isPLY) {
+        // Load PLY file
+        const plyData = await load(fullUrl, PLYLoader, {
+          ply: {
+            skip: 0,
+          },
+          onProgress: (progressEvent) => {
+            if (progressEvent.total) {
+              setProgress(Math.round((progressEvent.loaded / progressEvent.total) * 100));
+            }
           }
-        }
-      });
+        });
 
-      setModelData({
-        gltf,
-        url: fullUrl,
-        meshes: extractMeshes(gltf),
-      });
+        setModelData({
+          gltf: null,
+          url: fullUrl,
+          meshes: extractPLYMesh(plyData),
+          isPLY: true,
+        });
+      } else {
+        // Load GLB/GLTF file
+        const gltf = await load(fullUrl, GLTFLoader, {
+          gltf: {
+            loadBuffers: true,
+            loadImages: true,
+            decompressMeshes: true,
+            postProcess: true,
+          },
+          draco: {
+            decoderType: 'js',
+          },
+          onProgress: (progressEvent) => {
+            if (progressEvent.total) {
+              setProgress(Math.round((progressEvent.loaded / progressEvent.total) * 100));
+            }
+          }
+        });
+
+        setModelData({
+          gltf,
+          url: fullUrl,
+          meshes: extractMeshes(gltf),
+          isPLY: false,
+        });
+      }
       setProgress(100);
     } catch (err) {
       console.error('Error loading model:', err);
@@ -78,6 +103,87 @@ export function useModelLoader() {
     loadModel,
     clearModel,
   };
+}
+
+/**
+ * Extract mesh data from PLY point cloud
+ */
+function extractPLYMesh(plyData) {
+  const meshes = [];
+
+  if (!plyData || !plyData.attributes) {
+    console.warn('PLY data has no attributes');
+    return meshes;
+  }
+
+  const { attributes } = plyData;
+  const positions = attributes.POSITION?.value;
+
+  if (!positions) {
+    console.warn('PLY data has no position data');
+    return meshes;
+  }
+
+  // Extract colors if available (PLY can have red, green, blue or COLOR_0)
+  let colors = attributes.COLOR_0?.value;
+
+  // PLY files often store colors as separate r, g, b attributes
+  if (!colors && attributes.red?.value && attributes.green?.value && attributes.blue?.value) {
+    const r = attributes.red.value;
+    const g = attributes.green.value;
+    const b = attributes.blue.value;
+    const vertexCount = r.length;
+
+    // Check if values are 0-255 (uint8) or 0-1 (float)
+    const isUint8 = r[0] > 1 || g[0] > 1 || b[0] > 1;
+
+    if (isUint8) {
+      colors = new Uint8Array(vertexCount * 3);
+      for (let i = 0; i < vertexCount; i++) {
+        colors[i * 3] = r[i];
+        colors[i * 3 + 1] = g[i];
+        colors[i * 3 + 2] = b[i];
+      }
+    } else {
+      colors = new Float32Array(vertexCount * 3);
+      for (let i = 0; i < vertexCount; i++) {
+        colors[i * 3] = r[i];
+        colors[i * 3 + 1] = g[i];
+        colors[i * 3 + 2] = b[i];
+      }
+    }
+  }
+
+  // Extract normals if available
+  const normals = attributes.NORMAL?.value || attributes.nx?.value;
+  let normalData = normals;
+
+  // PLY files often store normals as separate nx, ny, nz attributes
+  if (!normalData && attributes.nx?.value && attributes.ny?.value && attributes.nz?.value) {
+    const nx = attributes.nx.value;
+    const ny = attributes.ny.value;
+    const nz = attributes.nz.value;
+    const vertexCount = nx.length;
+    normalData = new Float32Array(vertexCount * 3);
+    for (let i = 0; i < vertexCount; i++) {
+      normalData[i * 3] = nx[i];
+      normalData[i * 3 + 1] = ny[i];
+      normalData[i * 3 + 2] = nz[i];
+    }
+  }
+
+  meshes.push({
+    id: 'ply-mesh-0',
+    positions: positions,
+    normals: normalData || null,
+    colors: colors || null,
+    texcoords: null,
+    vertexCount: positions.length / 3,
+  });
+
+  console.log(`PLY loaded: ${positions.length / 3} vertices, colors: ${!!colors}, normals: ${!!normalData}`);
+
+  return meshes;
 }
 
 /**

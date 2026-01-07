@@ -2,7 +2,7 @@ Once the contents of this folder change, update this document.
 
 # deck.gl GLB Viewer
 
-A WebGPU-accelerated 3D GLB/GLTF model viewer built with deck.gl and React. Features point cloud visualization, first-person navigation controls, and a modern control panel.
+A WebGPU-accelerated 3D model viewer built with deck.gl and React. Supports GLB/GLTF meshes and PLY point clouds with first-person navigation controls and a modern control panel.
 
 ## Architecture
 
@@ -53,7 +53,7 @@ yarn build
 
 ## Adding New Models
 
-1. Add your GLB/GLTF file to `public/models/`
+1. Add your GLB/GLTF/PLY file to `public/models/`
 2. Update `public/models/models-manifest.json`:
 
 ```json
@@ -65,17 +65,28 @@ yarn build
       "path": "/models/your-model.glb",
       "type": "glb",
       "description": "Optional description"
+    },
+    {
+      "id": "your-pointcloud-id",
+      "name": "Point Cloud Name",
+      "path": "/models/your-pointcloud.ply",
+      "type": "ply",
+      "description": "PLY point cloud file"
     }
   ]
 }
 ```
+
+Supported formats:
+- **GLB/GLTF**: 3D mesh models (with optional Draco compression)
+- **PLY**: Point cloud files (ASCII or binary, with optional colors/normals)
 
 ## Technology Stack
 
 - React 18
 - deck.gl v9 (WebGPU/WebGL2)
 - luma.gl v9 (WebGPU adapter)
-- loaders.gl (GLB/GLTF loading)
+- loaders.gl (GLB/GLTF/PLY loading)
 - cannon-es (physics, optional)
 
 ## Browser Support
