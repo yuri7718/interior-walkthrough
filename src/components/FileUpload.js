@@ -6,8 +6,10 @@
  */
 
 import React, { useState, useRef } from 'react';
-import { upload } from '@vercel/blob/client';
 import './FileUpload.css';
+
+// Max file size for server upload (4MB to stay under Vercel's 4.5MB limit)
+const MAX_FILE_SIZE = 4 * 1024 * 1024;
 
 export function FileUpload({ onUploadComplete }) {
   const [uploading, setUploading] = useState(false);
@@ -27,32 +29,53 @@ export function FileUpload({ onUploadComplete }) {
       return;
     }
 
+    // Check file size
+    if (file.size > MAX_FILE_SIZE) {
+      setError(`File too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB. Your file is ${(file.size / 1024 / 1024).toFixed(1)}MB.`);
+      return;
+    }
+
     setUploading(true);
     setError(null);
     setProgress(0);
 
     try {
-      // Use Vercel Blob client upload - supports large files (up to 500MB)
-      const blob = await upload(`models/${file.name}`, file, {
-        access: 'public',
-        handleUploadUrl: '/api/upload-url',
-        onUploadProgress: (progressEvent) => {
-          setProgress(Math.round((progressEvent.loaded / progressEvent.total) * 100));
-        },
+      // Use FormData for server upload
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const xhr = new XMLHttpRequest();
+
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          setProgress(Math.round((e.loaded / e.total) * 100));
+        }
       });
 
-      // Extract file info from blob response
-      const fileInfo = {
-        id: file.name.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9]/g, '-'),
-        name: file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' '),
-        path: blob.url,
-        type: ext.slice(1),
-        description: `Uploaded ${new Date().toISOString()}`,
-        size: file.size,
-      };
+      const response = await new Promise((resolve, reject) => {
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              resolve(JSON.parse(xhr.responseText));
+            } catch {
+              reject(new Error('Invalid server response'));
+            }
+          } else {
+            try {
+              const err = JSON.parse(xhr.responseText);
+              reject(new Error(err.error || `Upload failed (${xhr.status})`));
+            } catch {
+              reject(new Error(`Upload failed with status ${xhr.status}`));
+            }
+          }
+        };
+        xhr.onerror = () => reject(new Error('Network error'));
+        xhr.open('POST', '/api/upload');
+        xhr.send(formData);
+      });
 
-      if (onUploadComplete) {
-        onUploadComplete(fileInfo);
+      if (response.success && onUploadComplete) {
+        onUploadComplete(response.file);
       }
     } catch (err) {
       console.error('Upload error:', err);
