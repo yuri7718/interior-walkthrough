@@ -14,9 +14,31 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Admin password for protected operations
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+
 // Enable CORS for development
 app.use(cors());
 app.use(express.json());
+
+// Auth middleware for protected routes
+const requireAuth = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || authHeader !== `Bearer ${ADMIN_PASSWORD}`) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+};
+
+// Login endpoint
+app.post('/api/login', (req, res) => {
+  const { password } = req.body;
+  if (password === ADMIN_PASSWORD) {
+    res.json({ success: true, token: ADMIN_PASSWORD });
+  } else {
+    res.status(401).json({ error: 'Invalid password' });
+  }
+});
 
 // Ensure uploads directory exists
 const UPLOADS_DIR = path.join(__dirname, '../public/models/uploads');
@@ -54,8 +76,8 @@ const upload = multer({
   },
 });
 
-// Upload endpoint
-app.post('/api/upload', upload.single('file'), (req, res) => {
+// Upload endpoint (protected)
+app.post('/api/upload', requireAuth, upload.single('file'), (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -118,8 +140,8 @@ app.get('/api/models', (req, res) => {
   }
 });
 
-// Delete model endpoint
-app.delete('/api/models/:filename', (req, res) => {
+// Delete model endpoint (protected)
+app.delete('/api/models/:filename', requireAuth, (req, res) => {
   try {
     const filename = req.params.filename;
     const filePath = path.join(UPLOADS_DIR, filename);

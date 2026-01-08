@@ -16,7 +16,7 @@ import { usePointCloudExtractor, COLOR_MODES, calculateBounds } from './hooks/us
 
 function App() {
   // Model manifest and selection
-  const { models, loading: manifestLoading, error: manifestError, addModel } = useModelManifest();
+  const { models, loading: manifestLoading, error: manifestError, addModel, removeModel } = useModelManifest();
   const [selectedModel, setSelectedModel] = useState(null);
 
   // Model loading
@@ -25,7 +25,7 @@ function App() {
   // View and render controls - default to point cloud
   const [viewMode, setViewMode] = useState(VIEW_MODES.POINTCLOUD);
   const [controls, setControls] = useState({
-    pointSize: 2.5,  // Default point size
+    pointSize: 1,  // Default point size (1px)
     colorMode: COLOR_MODES.ORIGINAL,
     solidColor: [255, 255, 255],
     highQuality: true,
@@ -79,6 +79,15 @@ function App() {
     loadModel(file.path);
   }, [addModel, loadModel]);
 
+  // Handle model delete
+  const handleModelDelete = useCallback((model) => {
+    removeModel(model.id);
+    // If deleted model is currently selected, clear selection
+    if (selectedModel?.id === model.id) {
+      setSelectedModel(null);
+    }
+  }, [removeModel, selectedModel]);
+
   // Handle view mode change
   const handleViewModeChange = useCallback((mode) => {
     setViewMode(mode);
@@ -114,6 +123,7 @@ function App() {
         selectedModel={selectedModel}
         onSelect={handleModelSelect}
         onUploadComplete={handleUploadComplete}
+        onModelDelete={handleModelDelete}
       />
 
       {/* Main 3D Viewer - only render when model selected */}

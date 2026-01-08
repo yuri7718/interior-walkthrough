@@ -134,13 +134,13 @@ export function ControlPanel({
               {viewMode === VIEW_MODES.POINTCLOUD && (
                 <>
                   <div className="control-group">
-                    <label>Point Size: {controls.pointSize || 2}px</label>
+                    <label>Point Size: {controls.pointSize || 1}px</label>
                     <input
                       type="range"
-                      min="1"
+                      min="0.1"
                       max="20"
-                      step="0.5"
-                      value={controls.pointSize || 2}
+                      step="0.1"
+                      value={controls.pointSize || 1}
                       onChange={(e) => handleChange('pointSize', parseFloat(e.target.value))}
                     />
                   </div>

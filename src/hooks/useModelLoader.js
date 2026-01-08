@@ -117,6 +117,14 @@ function extractPLYMesh(plyData) {
   }
 
   const { attributes } = plyData;
+
+  // Debug: log all available attributes
+  console.log('PLY attributes available:', Object.keys(attributes));
+  Object.keys(attributes).forEach(key => {
+    const attr = attributes[key];
+    console.log(`  ${key}: type=${attr.value?.constructor?.name}, length=${attr.value?.length}, sample=${attr.value?.slice?.(0, 3)}`);
+  });
+
   const positions = attributes.POSITION?.value;
 
   if (!positions) {
@@ -127,30 +135,97 @@ function extractPLYMesh(plyData) {
   // Extract colors if available (PLY can have red, green, blue or COLOR_0)
   let colors = attributes.COLOR_0?.value;
 
-  // PLY files often store colors as separate r, g, b attributes
-  if (!colors && attributes.red?.value && attributes.green?.value && attributes.blue?.value) {
-    const r = attributes.red.value;
-    const g = attributes.green.value;
-    const b = attributes.blue.value;
-    const vertexCount = r.length;
+  // PLY files often store colors as separate r, g, b attributes (case insensitive)
+  if (!colors) {
+    // Try different naming conventions for colors
+    const redAttr = attributes.red || attributes.Red || attributes.RED || attributes.r || attributes.R;
+    const greenAttr = attributes.green || attributes.Green || attributes.GREEN || attributes.g || attributes.G;
+    const blueAttr = attributes.blue || attributes.Blue || attributes.BLUE || attributes.b || attributes.B;
 
-    // Check if values are 0-255 (uint8) or 0-1 (float)
-    const isUint8 = r[0] > 1 || g[0] > 1 || b[0] > 1;
+    if (redAttr?.value && greenAttr?.value && blueAttr?.value) {
+      const r = redAttr.value;
+      const g = greenAttr.value;
+      const b = blueAttr.value;
+      const vertexCount = r.length;
 
-    if (isUint8) {
+      // Check if values are 0-255 (uint8) or 0-1 (float)
+      const isUint8 = r[0] > 1 || g[0] > 1 || b[0] > 1;
+
+      if (isUint8) {
+        colors = new Uint8Array(vertexCount * 3);
+        for (let i = 0; i < vertexCount; i++) {
+          colors[i * 3] = r[i];
+          colors[i * 3 + 1] = g[i];
+          colors[i * 3 + 2] = b[i];
+        }
+      } else {
+        colors = new Float32Array(vertexCount * 3);
+        for (let i = 0; i < vertexCount; i++) {
+          colors[i * 3] = r[i];
+          colors[i * 3 + 1] = g[i];
+          colors[i * 3 + 2] = b[i];
+        }
+      }
+      console.log('Colors extracted from r/g/b attributes, isUint8:', isUint8);
+    }
+  }
+
+  // Also try diffuse_red, diffuse_green, diffuse_blue (some PLY exporters use this)
+  if (!colors) {
+    const dRed = attributes.diffuse_red || attributes.diffuseRed;
+    const dGreen = attributes.diffuse_green || attributes.diffuseGreen;
+    const dBlue = attributes.diffuse_blue || attributes.diffuseBlue;
+
+    if (dRed?.value && dGreen?.value && dBlue?.value) {
+      const r = dRed.value;
+      const g = dGreen.value;
+      const b = dBlue.value;
+      const vertexCount = r.length;
+      const isUint8 = r[0] > 1 || g[0] > 1 || b[0] > 1;
+
+      if (isUint8) {
+        colors = new Uint8Array(vertexCount * 3);
+      } else {
+        colors = new Float32Array(vertexCount * 3);
+      }
+
+      for (let i = 0; i < vertexCount; i++) {
+        colors[i * 3] = r[i];
+        colors[i * 3 + 1] = g[i];
+        colors[i * 3 + 2] = b[i];
+      }
+      console.log('Colors extracted from diffuse_* attributes');
+    }
+  }
+
+  // Support for 3D Gaussian Splatting PLY format (f_dc_0, f_dc_1, f_dc_2 are spherical harmonics DC components)
+  if (!colors) {
+    const fdc0 = attributes.f_dc_0 || attributes['f_dc_0'];
+    const fdc1 = attributes.f_dc_1 || attributes['f_dc_1'];
+    const fdc2 = attributes.f_dc_2 || attributes['f_dc_2'];
+
+    if (fdc0?.value && fdc1?.value && fdc2?.value) {
+      const dc0 = fdc0.value;
+      const dc1 = fdc1.value;
+      const dc2 = fdc2.value;
+      const vertexCount = dc0.length;
+
+      // Spherical Harmonics constant for DC component: 0.28209479177387814
+      const SH_C0 = 0.28209479177387814;
+
       colors = new Uint8Array(vertexCount * 3);
       for (let i = 0; i < vertexCount; i++) {
-        colors[i * 3] = r[i];
-        colors[i * 3 + 1] = g[i];
-        colors[i * 3 + 2] = b[i];
+        // Convert SH DC to RGB: color = 0.5 + SH_C0 * f_dc
+        // Then clamp to [0, 1] and convert to [0, 255]
+        const r = Math.max(0, Math.min(1, 0.5 + SH_C0 * dc0[i]));
+        const g = Math.max(0, Math.min(1, 0.5 + SH_C0 * dc1[i]));
+        const b = Math.max(0, Math.min(1, 0.5 + SH_C0 * dc2[i]));
+
+        colors[i * 3] = Math.round(r * 255);
+        colors[i * 3 + 1] = Math.round(g * 255);
+        colors[i * 3 + 2] = Math.round(b * 255);
       }
-    } else {
-      colors = new Float32Array(vertexCount * 3);
-      for (let i = 0; i < vertexCount; i++) {
-        colors[i * 3] = r[i];
-        colors[i * 3 + 1] = g[i];
-        colors[i * 3 + 2] = b[i];
-      }
+      console.log('Colors extracted from Gaussian Splatting f_dc_* attributes (SH DC components)');
     }
   }
 
@@ -172,10 +247,40 @@ function extractPLYMesh(plyData) {
     }
   }
 
+  // Flip Y axis for Gaussian Splatting PLY files (they use inverted Y coordinate)
+  // Check if this is a Gaussian Splatting file by looking for f_dc_* attributes
+  const isGaussianSplatting = attributes.f_dc_0 || attributes['f_dc_0'];
+
+  let finalPositions = positions;
+  let finalNormals = normalData;
+
+  if (isGaussianSplatting) {
+    // Create new array with flipped Y and Z coordinates
+    // Gaussian Splatting uses different coordinate convention
+    finalPositions = new Float32Array(positions.length);
+    for (let i = 0; i < positions.length; i += 3) {
+      finalPositions[i] = positions[i];          // X stays the same
+      finalPositions[i + 1] = -positions[i + 1]; // Flip Y (up/down)
+      finalPositions[i + 2] = -positions[i + 2]; // Flip Z (front/back)
+    }
+
+    // Also flip normals if they exist
+    if (normalData) {
+      finalNormals = new Float32Array(normalData.length);
+      for (let i = 0; i < normalData.length; i += 3) {
+        finalNormals[i] = normalData[i];
+        finalNormals[i + 1] = -normalData[i + 1];
+        finalNormals[i + 2] = -normalData[i + 2];
+      }
+    }
+
+    console.log('Applied Y and Z axis flip for Gaussian Splatting PLY');
+  }
+
   meshes.push({
     id: 'ply-mesh-0',
-    positions: positions,
-    normals: normalData || null,
+    positions: finalPositions,
+    normals: finalNormals || null,
     colors: colors || null,
     texcoords: null,
     vertexCount: positions.length / 3,
@@ -368,5 +473,9 @@ export function useModelManifest() {
     setModels(prev => [{ ...model, source: 'uploaded' }, ...prev]);
   }, []);
 
-  return { models, loading, error, refetch: fetchModels, addModel };
+  const removeModel = useCallback((modelId) => {
+    setModels(prev => prev.filter(m => m.id !== modelId));
+  }, []);
+
+  return { models, loading, error, refetch: fetchModels, addModel, removeModel };
 }

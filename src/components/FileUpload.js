@@ -11,7 +11,7 @@ import './FileUpload.css';
 // API base URL - use environment variable or default to same origin
 const API_BASE = process.env.REACT_APP_API_URL || '';
 
-export function FileUpload({ onUploadComplete }) {
+export function FileUpload({ onUploadComplete, authToken }) {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState(null);
@@ -65,6 +65,9 @@ export function FileUpload({ onUploadComplete }) {
         };
         xhr.onerror = () => reject(new Error('Network error'));
         xhr.open('POST', `${API_BASE}/api/upload`);
+        if (authToken) {
+          xhr.setRequestHeader('Authorization', `Bearer ${authToken}`);
+        }
         xhr.send(formData);
       });
 
