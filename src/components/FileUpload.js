@@ -8,8 +8,8 @@
 import React, { useState, useRef } from 'react';
 import './FileUpload.css';
 
-// Max file size for server upload (4MB to stay under Vercel's 4.5MB limit)
-const MAX_FILE_SIZE = 4 * 1024 * 1024;
+// API base URL - use environment variable or default to same origin
+const API_BASE = process.env.REACT_APP_API_URL || '';
 
 export function FileUpload({ onUploadComplete }) {
   const [uploading, setUploading] = useState(false);
@@ -26,12 +26,6 @@ export function FileUpload({ onUploadComplete }) {
     const ext = file.name.toLowerCase().match(/\.[^.]+$/)?.[0];
     if (!ext || !allowedTypes.includes(ext)) {
       setError(`Invalid file type. Allowed: ${allowedTypes.join(', ')}`);
-      return;
-    }
-
-    // Check file size
-    if (file.size > MAX_FILE_SIZE) {
-      setError(`File too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB. Your file is ${(file.size / 1024 / 1024).toFixed(1)}MB.`);
       return;
     }
 
@@ -70,7 +64,7 @@ export function FileUpload({ onUploadComplete }) {
           }
         };
         xhr.onerror = () => reject(new Error('Network error'));
-        xhr.open('POST', '/api/upload');
+        xhr.open('POST', `${API_BASE}/api/upload`);
         xhr.send(formData);
       });
 

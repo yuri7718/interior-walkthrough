@@ -44,15 +44,35 @@ React application using deck.gl v9 with WebGPU support (falls back to WebGL2) fo
 ## Getting Started
 
 ```bash
-# Install dependencies
+# Install frontend dependencies
 yarn install
 
-# Start development server
+# Start frontend development server
 yarn start
 
-# Build for production
+# Build frontend for production
 yarn build
 ```
+
+### With File Upload Server
+
+To enable file uploads, run the backend server alongside the frontend:
+
+```bash
+# Terminal 1: Start backend server
+cd server
+npm install
+npm start
+# Server runs on http://localhost:3001
+
+# Terminal 2: Start frontend with API proxy
+REACT_APP_API_URL=http://localhost:3001 yarn start
+```
+
+For production deployment, configure your web server (nginx, etc.) to:
+1. Serve the built frontend from `build/`
+2. Proxy `/api/*` requests to the Node.js server
+3. Serve uploaded files from `public/models/uploads/`
 
 ## Adding New Models
 

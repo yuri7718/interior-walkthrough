@@ -308,6 +308,9 @@ function extractMeshes(gltf) {
   return meshes;
 }
 
+// API base URL - use environment variable or default to same origin
+const API_BASE = process.env.REACT_APP_API_URL || '';
+
 /**
  * Hook to fetch available models from API and manifest
  */
@@ -323,7 +326,7 @@ export function useModelManifest() {
 
       // Try to fetch from API (uploaded models)
       try {
-        const apiResponse = await fetch('/api/models');
+        const apiResponse = await fetch(`${API_BASE}/api/models`);
         if (apiResponse.ok) {
           const apiData = await apiResponse.json();
           if (apiData.models) {
